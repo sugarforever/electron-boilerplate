@@ -16,6 +16,18 @@ const electronAPI: ElectronAPI = {
   // Database
   dbQuery: (query) => ipcRenderer.invoke('db:query', query),
 
+  // Chat (can be removed if chat feature is not needed)
+  chatSendMessage: (messages) => ipcRenderer.invoke('chat:sendMessage', messages),
+  chatGetApiKey: () => ipcRenderer.invoke('chat:getApiKey'),
+  chatSetApiKey: (apiKey) => ipcRenderer.invoke('chat:setApiKey', apiKey),
+  onChatStream: (callback) => {
+    const subscription = (_event: Electron.IpcRendererEvent, chunk: import('../shared/types').ChatStreamChunk) => callback(chunk)
+    ipcRenderer.on('chat:stream', subscription)
+    return () => {
+      ipcRenderer.removeListener('chat:stream', subscription)
+    }
+  },
+
   // Event listeners
   onMainMessage: (callback) => {
     const subscription = (_event: Electron.IpcRendererEvent, value: string) => callback(value)

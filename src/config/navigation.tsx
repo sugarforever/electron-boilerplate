@@ -1,4 +1,4 @@
-import { Home, Settings, Info, Code, Cloud } from 'lucide-react'
+import { Home, Settings, Info, Code, Cloud, MessageSquare } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 export interface NavigationItem {
@@ -32,6 +32,12 @@ export const navigationItems: NavigationItem[] = [
     id: 'features',
     label: 'Features',
     icon: Code,
+  },
+  {
+    id: 'chat',
+    label: 'AI Chat',
+    icon: MessageSquare,
+    // Can be removed if chat feature is not needed
   },
   {
     id: 'weather',

@@ -12,6 +12,11 @@ global.window.electron = {
   showNotification: async () => ({ success: true, data: undefined }),
   openExternal: async () => ({ success: true, data: undefined }),
   dbQuery: async <T>() => ({ success: true, data: [] as T }),
+  // Chat feature mocks (can be removed if chat feature is not needed)
+  chatSendMessage: async () => ({ success: true, data: { streamId: 'test-stream' } }),
+  chatGetApiKey: async () => ({ success: true, data: null }),
+  chatSetApiKey: async () => ({ success: true, data: undefined }),
+  onChatStream: () => () => {},
   onMainMessage: () => () => {},
   onNavigateTo: () => () => {},
 }
