@@ -57,15 +57,98 @@ export function setupIPC() {
     }
   })
 
-  // Database operations (to be implemented with Prisma)
-  ipcMain.handle('db:query', async (_event, _query: string): Promise<IpcResponse<unknown>> => {
+  // ============================================================================
+  // Database Operations (User Management)
+  // ============================================================================
+
+  // Get all users
+  ipcMain.handle('db:users:getAll', async (): Promise<IpcResponse<any[]>> => {
     try {
-      // TODO: Implement database query logic with Prisma
-      return { success: true, data: [] }
+      const { userRepository } = await import('./database')
+      const users = userRepository.getAll()
+      return { success: true, data: users }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Database query failed',
+        error: error instanceof Error ? error.message : 'Failed to get users',
+      }
+    }
+  })
+
+  // Get user by ID
+  ipcMain.handle('db:users:getById', async (_event, id: number): Promise<IpcResponse<any>> => {
+    try {
+      const { userRepository } = await import('./database')
+      const user = userRepository.getById(id)
+      if (!user) {
+        return { success: false, error: 'User not found' }
+      }
+      return { success: true, data: user }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get user',
+      }
+    }
+  })
+
+  // Create user
+  ipcMain.handle(
+    'db:users:create',
+    async (
+      _event,
+      data: { email: string; name: string | null }
+    ): Promise<IpcResponse<any>> => {
+      try {
+        const { userRepository } = await import('./database')
+        const user = userRepository.create(data)
+        return { success: true, data: user }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to create user',
+        }
+      }
+    }
+  )
+
+  // Update user
+  ipcMain.handle(
+    'db:users:update',
+    async (_event, params: {
+      id: number
+      data: { email?: string; name?: string | null }
+    }): Promise<IpcResponse<any>> => {
+      const { id, data } = params
+      try {
+        const { userRepository } = await import('./database')
+        const user = userRepository.update(id, data)
+        if (!user) {
+          return { success: false, error: 'User not found' }
+        }
+        return { success: true, data: user }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to update user',
+        }
+      }
+    }
+  )
+
+  // Delete user
+  ipcMain.handle('db:users:delete', async (_event, id: number): Promise<IpcResponse<boolean>> => {
+    try {
+      const { userRepository } = await import('./database')
+      const deleted = userRepository.delete(id)
+      if (!deleted) {
+        return { success: false, error: 'User not found' }
+      }
+      return { success: true, data: true }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete user',
       }
     }
   })
@@ -140,7 +223,6 @@ export function setupIPC() {
                 content: m.content,
               })),
               temperature: 0.7,
-              maxSteps: 1,
             })
 
             // Stream the response

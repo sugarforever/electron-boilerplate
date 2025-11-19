@@ -13,8 +13,12 @@ const electronAPI: ElectronAPI = {
   // Shell
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 
-  // Database
-  dbQuery: (query) => ipcRenderer.invoke('db:query', query),
+  // Database - User operations
+  dbUsersGetAll: () => ipcRenderer.invoke('db:users:getAll'),
+  dbUsersGetById: (id) => ipcRenderer.invoke('db:users:getById', id),
+  dbUsersCreate: (data) => ipcRenderer.invoke('db:users:create', data),
+  dbUsersUpdate: (id, data) => ipcRenderer.invoke('db:users:update', { id, data }),
+  dbUsersDelete: (id) => ipcRenderer.invoke('db:users:delete', id),
 
   // Chat (can be removed if chat feature is not needed)
   chatSendMessage: (messages) => ipcRenderer.invoke('chat:sendMessage', messages),

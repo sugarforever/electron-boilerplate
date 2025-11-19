@@ -27,11 +27,15 @@ release
 .env
 .env.local
 
-# Database
+# Database (SQLite)
 *.db
 *.db-journal
-prisma/dev.db
-prisma/dev.db-journal
+*.db-shm
+*.db-wal
+data/
+
+# Drizzle migrations metadata (migrations SQL should be committed)
+# drizzle/meta/
 
 # Testing
 coverage

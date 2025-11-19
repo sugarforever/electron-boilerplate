@@ -13,6 +13,12 @@ export interface NotificationOptions {
   body: string
 }
 
+// Database types - imported from Drizzle schema
+// Types are auto-generated from schema.ts for type safety
+import type { User as DrizzleUser } from '../main/schema'
+
+export type User = DrizzleUser
+
 // Chat feature types
 export interface ChatMessage {
   id: string
@@ -37,8 +43,12 @@ export interface ElectronAPI {
   // Shell
   openExternal: (url: string) => Promise<IpcResponse<void>>
 
-  // Database
-  dbQuery: <T = unknown>(query: string) => Promise<IpcResponse<T>>
+  // Database - User operations
+  dbUsersGetAll: () => Promise<IpcResponse<User[]>>
+  dbUsersGetById: (id: number) => Promise<IpcResponse<User>>
+  dbUsersCreate: (data: { email: string; name: string | null }) => Promise<IpcResponse<User>>
+  dbUsersUpdate: (id: number, data: { email?: string; name?: string | null }) => Promise<IpcResponse<User>>
+  dbUsersDelete: (id: number) => Promise<IpcResponse<boolean>>
 
   // Chat (can be removed if chat feature is not needed)
   chatSendMessage: (messages: ChatMessage[]) => Promise<IpcResponse<{ streamId: string }>>
@@ -55,7 +65,11 @@ export type IpcChannels =
   | 'app:getVersion'
   | 'notification:show'
   | 'shell:openExternal'
-  | 'db:query'
+  | 'db:users:getAll'
+  | 'db:users:getById'
+  | 'db:users:create'
+  | 'db:users:update'
+  | 'db:users:delete'
   | 'chat:sendMessage'
   | 'chat:getApiKey'
   | 'chat:setApiKey'

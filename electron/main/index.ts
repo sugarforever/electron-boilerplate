@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { WindowStateManager } from './window-state-manager'
 import { setupIPC } from './ipc-handlers'
 import { createSystemTray } from './system-tray'
+import { initializeDatabase, closeDatabase } from './database'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -64,6 +65,17 @@ function createWindow() {
 
 // App lifecycle
 app.whenReady().then(() => {
+  // Initialize database FIRST (before opening windows)
+  // This ensures migrations run before any UI interaction
+  try {
+    initializeDatabase()
+  } catch (error) {
+    console.error('Failed to initialize database:', error)
+    // Optionally: show error dialog and quit
+    // dialog.showErrorBox('Database Error', 'Failed to initialize database')
+    // app.quit()
+  }
+
   // Setup IPC handlers
   setupIPC()
 
@@ -96,4 +108,5 @@ app.on('before-quit', () => {
 // Cleanup
 app.on('will-quit', () => {
   tray?.destroy()
+  closeDatabase()
 })

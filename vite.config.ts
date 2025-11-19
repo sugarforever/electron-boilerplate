@@ -12,6 +12,9 @@ export default defineConfig({
         vite: {
           build: {
             outDir: 'dist-electron/main',
+            rollupOptions: {
+              external: ['better-sqlite3'],
+            },
           },
         },
       },

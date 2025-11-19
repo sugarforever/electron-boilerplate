@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is an Electron boilerplate designed to bootstrap new desktop applications quickly. It uses modern technologies and follows best practices for production-ready Electron apps.
 
-**Tech Stack**: Electron 32+, React 18, TypeScript 5, Vite 5, Redux Toolkit, Prisma, better-sqlite3, shadcn/ui, Tailwind CSS
+**Tech Stack**: Electron 32+, React 18, TypeScript 5, Vite 5, Redux Toolkit, Drizzle ORM + better-sqlite3, shadcn/ui, Tailwind CSS
 
 **Design Philosophy**: Minimalist black & white theme with the Inter font family, emphasizing clarity and modern aesthetics.
 
@@ -32,10 +32,10 @@ npm run lint:fix         # Fix ESLint errors automatically
 npm run format           # Format code with Prettier
 npm run format:check     # Check code formatting
 
-# Database
-npx prisma generate      # Generate Prisma Client after schema changes
-npx prisma migrate dev   # Create and apply migration
-npx prisma studio        # Open Prisma Studio GUI
+# Database (Drizzle ORM)
+npm run db:generate      # Generate migration from schema.ts
+npm run db:push          # Push schema directly to database (dev only)
+npm run db:studio        # Open Drizzle Studio (database GUI)
 ```
 
 ### Single Test Execution
@@ -141,38 +141,334 @@ if (response.success) {
 3. Export actions and reducer
 4. Add reducer to store in `src/store/index.ts`
 
-### Database with Prisma
+### Database with Drizzle ORM
 
-**Schema Location**: `prisma/schema.prisma`
+**Schema File**: `electron/main/schema.ts`
+**Database Module**: `electron/main/database.ts`
+**Config**: `drizzle.config.ts`
 
-**Workflow**:
-1. Modify schema in `schema.prisma`
-2. Run `npx prisma migrate dev --name migration_name`
-3. Prisma Client auto-generates with types
-4. Import: `import { PrismaClient } from '@prisma/client'`
+**Why Drizzle ORM?**
+- **Type-Safe**: Schema in TypeScript, types auto-generated
+- **No Manual SQL**: Define models once, migrations auto-generated
+- **Mac App Store Compatible**: Uses better-sqlite3 (no external binaries)
+- **Lightweight**: ~50KB vs Prisma's 5MB+ query engine
+- **Developer Confidence**: No SQL typos, compile-time type checking
+- **Production-Ready**: Automatic migrations on app updates
 
-**SQLite with better-sqlite3**:
-- Database file: `prisma/dev.db`
-- Uses better-sqlite3 driver for performance
-- Synchronous operations (no async overhead in some cases)
+**Database Locations**:
+- **Development**: `data/dev.db` (project directory)
+- **Production**: `app.getPath('userData')/database.db` (user data directory)
 
-**Integration with Electron**:
-- Database operations should happen in **main process** only
-- Expose database methods via IPC handlers
-- Never give renderer direct database access
+---
 
-Example IPC pattern for DB:
+### Workflow: Adding New Tables/Columns
+
+#### **Step 1: Define Schema** (`electron/main/schema.ts`)
+
 ```typescript
-// Main process handler
-ipcMain.handle('db:getUsers', async () => {
-  const prisma = new PrismaClient()
-  const users = await prisma.user.findMany()
-  return { success: true, data: users }
-})
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
 
-// Renderer usage
-const response = await window.electron.dbQuery('SELECT * FROM users')
+// Define your table schema
+export const posts = sqliteTable(
+  'posts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    content: text('content'),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`)
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => ({
+    // Define indexes for performance
+    userIdIdx: index('idx_posts_user_id').on(table.userId),
+  })
+)
+
+// Auto-generated types
+export type Post = typeof posts.$inferSelect
+export type NewPost = typeof posts.$inferInsert
 ```
+
+#### **Step 2: Generate Migration**
+
+```bash
+npm run db:generate
+```
+
+This creates SQL migration file in `drizzle/` folder:
+
+```
+drizzle/
+  0001_brave_avengers.sql  # Auto-generated SQL
+  meta/                     # Migration metadata
+```
+
+**No manual SQL writing required!** Drizzle generates perfectly formatted SQL from your schema.
+
+#### **Step 3: Migration Auto-Applies**
+
+Next time you run the app:
+```bash
+npm run dev
+```
+
+Output:
+```
+Initializing database...
+Running migrations from: /path/to/drizzle
+BEGIN
+CREATE TABLE `posts` (...)
+INSERT INTO "__drizzle_migrations" (...)
+COMMIT
+✓ Migrations complete
+```
+
+**That's it!** Your database is updated automatically.
+
+---
+
+### Using the Database
+
+#### **1. Create Repository** (`electron/main/database.ts`)
+
+```typescript
+import { eq, desc } from 'drizzle-orm'
+import { posts, type Post, type NewPost } from './schema'
+
+export const postRepository = {
+  getAll(): Post[] {
+    return getDatabase()
+      .select()
+      .from(posts)
+      .orderBy(desc(posts.createdAt))
+      .all()
+  },
+
+  getById(id: number): Post | undefined {
+    return getDatabase()
+      .select()
+      .from(posts)
+      .where(eq(posts.id, id))
+      .get()
+  },
+
+  create(data: NewPost): Post {
+    return getDatabase()
+      .insert(posts)
+      .values(data)
+      .returning()
+      .get()
+  },
+
+  delete(id: number): boolean {
+    const result = getDatabase()
+      .delete(posts)
+      .where(eq(posts.id, id))
+      .run()
+    return result.changes > 0
+  },
+}
+```
+
+**Benefits**:
+- ✅ Fully type-safe (TypeScript autocomplete)
+- ✅ No SQL injection vulnerabilities
+- ✅ Catches errors at compile time
+- ✅ IDE autocomplete for all operations
+
+#### **2. Add IPC Handler** (`electron/main/ipc-handlers.ts`)
+
+```typescript
+ipcMain.handle('db:posts:getAll', async (): Promise<IpcResponse<Post[]>> => {
+  try {
+    const { postRepository } = await import('./database')
+    const posts = postRepository.getAll()
+    return { success: true, data: posts }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get posts',
+    }
+  }
+})
+```
+
+#### **3. Add Types** (`electron/shared/types.ts`)
+
+```typescript
+import type { Post as DrizzlePost } from '../main/schema'
+
+export type Post = DrizzlePost  // Auto-generated from schema
+
+export interface ElectronAPI {
+  // ... existing methods
+  dbPostsGetAll: () => Promise<IpcResponse<Post[]>>
+}
+```
+
+#### **4. Expose in Preload** (`electron/preload/index.ts`)
+
+```typescript
+const electronAPI: ElectronAPI = {
+  // ... existing methods
+  dbPostsGetAll: () => ipcRenderer.invoke('db:posts:getAll'),
+}
+```
+
+#### **5. Use in Renderer**
+
+```typescript
+import { useEffect, useState } from 'react'
+import type { Post } from '@/../electron/shared/types'
+
+export function PostsPage() {
+  const [posts, setPosts] = useState<Post[]>([])
+
+  useEffect(() => {
+    async function fetchPosts() {
+      const response = await window.electron.dbPostsGetAll()
+      if (response.success) {
+        setPosts(response.data) // Fully typed!
+      }
+    }
+    fetchPosts()
+  }, [])
+
+  return (
+    <div>
+      {posts.map(post => (
+        <div key={post.id}>
+          <h3>{post.title}</h3>
+          <p>{post.content}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+
+---
+
+### Advanced Patterns
+
+#### **Relationships (Joins)**
+
+```typescript
+// Get posts with author information
+const postsWithAuthors = getDatabase()
+  .select({
+    post: posts,
+    author: users,
+  })
+  .from(posts)
+  .leftJoin(users, eq(posts.userId, users.id))
+  .all()
+```
+
+#### **Filters and Conditions**
+
+```typescript
+import { and, or, like, gt } from 'drizzle-orm'
+
+// Complex query
+const recentPosts = getDatabase()
+  .select()
+  .from(posts)
+  .where(
+    and(
+      like(posts.title, '%Electron%'),
+      gt(posts.createdAt, '2025-01-01')
+    )
+  )
+  .all()
+```
+
+#### **Transactions**
+
+```typescript
+const db = getDatabase()
+
+db.transaction((tx) => {
+  const user = tx.insert(users).values({ email: 'test@example.com' }).returning().get()
+  tx.insert(posts).values({ userId: user.id, title: 'First Post' }).run()
+})
+```
+
+---
+
+### Production Deployment
+
+When users update your app from v1.0 to v2.0:
+
+**User's Machine:**
+1. User downloads update from Mac App Store
+2. Launches app
+3. App initializes: `initializeDatabase()`
+4. Drizzle reads migration history from `__drizzle_migrations`
+5. Runs pending migrations (e.g., migration 0001)
+6. Updates database schema
+7. App continues normally
+
+**User experience**: Seamless, automatic, invisible ✨
+
+**Data Safety**:
+- ✅ Migrations run in transaction (all-or-nothing)
+- ✅ User's existing data preserved
+- ✅ Schema updated automatically
+- ✅ No manual steps required
+
+---
+
+### Development Tools
+
+#### **Drizzle Studio** (Database GUI)
+
+```bash
+npm run db:studio
+```
+
+Opens a web-based database viewer at `https://local.drizzle.studio`:
+- Browse tables visually
+- Edit data directly
+- See relationships
+- No SQL required
+
+#### **Push Schema** (Development Only)
+
+```bash
+npm run db:push
+```
+
+Pushes schema changes directly to database without creating migration files. **Only use in development!**
+
+---
+
+### App Store Considerations
+
+✅ **Mac App Store Compatible**:
+- Uses `app.getPath('userData')` for sandbox compliance
+- No external binaries to code-sign
+- WAL mode enabled for performance
+- Foreign keys enforced
+- Lightweight (~550KB total)
+
+✅ **Type Safety**:
+- Schema is source of truth
+- Compile-time error checking
+- Auto-generated types
+- No runtime schema mismatches
+
+✅ **Developer Confidence**:
+- Can't ship broken migrations (TypeScript catches errors)
+- Auto-generated SQL is always valid
+- Schema changes are trackable in git
+- Clear migration history
 
 ### UI Components (shadcn/ui)
 
@@ -574,7 +870,7 @@ global.window.electron = {
 6. **IPC Handlers**: Add to `electron/main/ipc-handlers.ts` or create feature-specific file
 7. **Types**: `electron/shared/types.ts` for IPC, inline for component-specific
 8. **Tests**: `src/test/[feature]/ComponentName.test.tsx`
-9. **Database Models**: `prisma/schema.prisma`
+9. **Database Schema**: Define in `electron/main/schema.ts`, generate migrations with `npm run db:generate`
 
 ### Naming Conventions
 
@@ -680,11 +976,13 @@ const result = await window.electron.yourMethod()
 - Check preload script is loaded: `console.log(window.electron)`
 - Ensure context isolation is enabled
 
-### Prisma Errors
+### Database Errors
 
-- Run `npx prisma generate` after schema changes
-- Check database file exists: `ls prisma/dev.db`
-- For migration errors, reset: `npx prisma migrate reset`
+- **Migration fails**: Check `drizzle/` folder for generated SQL, ensure schema.ts is valid
+- **Schema mismatch**: Run `npm run db:generate` to create new migration
+- **Reset database**: Delete `data/dev.db*` and restart app (migrations will recreate schema)
+- **Production database location**: `app.getPath('userData')/database.db`
+- **View database**: Run `npm run db:studio` to open Drizzle Studio GUI
 
 ### Build Errors
 
