@@ -36,6 +36,9 @@ npm run format:check     # Check code formatting
 npm run db:generate      # Generate migration from schema.ts
 npm run db:push          # Push schema directly to database (dev only)
 npm run db:studio        # Open Drizzle Studio (database GUI)
+
+# Native Modules
+npm run rebuild          # Rebuild native modules for Electron (runs automatically after npm install)
 ```
 
 ### Single Test Execution
@@ -989,6 +992,16 @@ const result = await window.electron.yourMethod()
 - Clear caches: `rm -rf dist dist-electron node_modules/.vite`
 - Reinstall: `rm -rf node_modules && npm install`
 - Check native module compatibility with Electron version
+
+### Native Module Errors
+
+If you encounter errors related to native modules (like `better-sqlite3`), especially after upgrading Electron:
+
+- **Automatic rebuild**: The `postinstall` script automatically rebuilds native modules after `npm install`
+- **Manual rebuild**: Run `npm run rebuild` to rebuild native modules for your current Electron version
+- **Fresh install**: If problems persist, delete `node_modules` and run `npm install` again
+
+**Note**: This boilerplate includes `@electron/rebuild` which automatically handles native module compatibility across different Electron versions.
 
 ### Window Not Appearing
 
