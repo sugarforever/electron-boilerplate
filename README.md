@@ -1,6 +1,6 @@
 # Electron Boilerplate
 
-A modern, production-ready Electron boilerplate with React, Vite, TypeScript, Redux Toolkit, and shadcn/ui. Perfect for quickly bootstrapping new desktop applications with a beautiful minimalist design.
+A modern, production-ready Electron boilerplate with React, Vite, TypeScript, Redux Toolkit, Drizzle ORM, and shadcn/ui. Perfect for quickly bootstrapping new desktop applications with a beautiful minimalist design.
 
 ## Features
 
@@ -9,13 +9,16 @@ A modern, production-ready Electron boilerplate with React, Vite, TypeScript, Re
 - **Redux Toolkit** - Efficient, type-safe state management
 - **shadcn/ui + Radix UI** - Beautiful, accessible UI components
 - **Tailwind CSS** - Utility-first CSS with a minimalist black & white theme
-- **Prisma + better-sqlite3** - Type-safe database ORM with SQLite
+- **Drizzle ORM + better-sqlite3** - Lightweight, type-safe database ORM with SQLite
 - **Type-Safe IPC** - Fully typed communication between main and renderer processes
 - **System Tray** - Pre-configured system tray with customizable menu
 - **Window State Management** - Automatically persists window size and position
 - **Native Notifications** - Built-in support for system notifications
+- **Vercel AI SDK** - Integrated AI capabilities with OpenAI support
+- **Navigation System** - Extensible page-based navigation with sidebar
 - **Vitest** - Fast unit testing with React Testing Library
 - **ESLint + Prettier** - Code quality and formatting
+- **Auto Native Module Rebuild** - Automatic rebuilding of native modules for Electron
 
 ## Design
 
@@ -35,7 +38,8 @@ A modern, production-ready Electron boilerplate with React, Vite, TypeScript, Re
 | State Management | Redux Toolkit |
 | UI Components | Radix UI + shadcn/ui |
 | Styling | Tailwind CSS |
-| Database | Prisma + better-sqlite3 |
+| Database | Drizzle ORM + better-sqlite3 |
+| AI Integration | Vercel AI SDK + OpenAI |
 | Testing | Vitest + React Testing Library |
 | Code Quality | ESLint + Prettier |
 
@@ -209,6 +213,8 @@ electron-boilerplate/
 │   ├── main/                  # Main process code
 │   │   ├── index.ts          # Main entry point
 │   │   ├── ipc-handlers.ts   # IPC message handlers
+│   │   ├── schema.ts         # Drizzle ORM schema
+│   │   ├── database.ts       # Database initialization & repositories
 │   │   ├── system-tray.ts    # System tray configuration
 │   │   └── window-state-manager.ts  # Window state persistence
 │   ├── preload/               # Preload scripts
@@ -217,20 +223,28 @@ electron-boilerplate/
 │       └── types.ts          # IPC type definitions
 ├── src/                       # React renderer process
 │   ├── components/           # React components
-│   │   └── ui/              # shadcn/ui components
-│   ├── lib/                 # Utilities
-│   │   └── utils.ts        # Helper functions
-│   ├── store/              # Redux store
-│   │   ├── index.ts       # Store configuration
-│   │   ├── hooks.ts       # Typed hooks
-│   │   └── slices/        # Redux slices
-│   ├── test/              # Test files
-│   ├── App.tsx            # Root component
-│   ├── main.tsx           # React entry point
-│   └── index.css          # Global styles
-├── prisma/                # Database
-│   └── schema.prisma     # Prisma schema
-├── public/               # Static assets
+│   │   ├── ui/              # shadcn/ui components
+│   │   ├── Layout.tsx       # Main layout with sidebar
+│   │   ├── Sidebar.tsx      # Navigation sidebar
+│   │   └── PageRouter.tsx   # Page routing component
+│   ├── config/              # Configuration
+│   │   └── navigation.tsx  # Navigation menu config
+│   ├── contexts/           # React contexts
+│   │   └── NavigationContext.tsx  # Navigation state
+│   ├── lib/                # Utilities
+│   │   └── utils.ts       # Helper functions
+│   ├── pages/             # Application pages
+│   ├── store/            # Redux store
+│   │   ├── index.ts     # Store configuration
+│   │   ├── hooks.ts     # Typed hooks
+│   │   └── slices/      # Redux slices
+│   ├── test/            # Test files
+│   ├── App.tsx          # Root component
+│   ├── main.tsx         # React entry point
+│   └── index.css        # Global styles
+├── drizzle/             # Database migrations
+├── data/                # Local database files (dev)
+├── public/              # Static assets
 └── package.json         # Dependencies and scripts
 ```
 
@@ -238,16 +252,25 @@ electron-boilerplate/
 
 ### Database
 
-The boilerplate uses Prisma with SQLite (better-sqlite3). To modify the schema:
+The boilerplate uses Drizzle ORM with SQLite (better-sqlite3). To modify the schema:
 
-1. Edit `prisma/schema.prisma`
-2. Run `npx prisma migrate dev --name your_migration_name`
-3. Prisma Client will auto-generate types
+1. Edit `electron/main/schema.ts`
+2. Run `npm run db:generate` to generate migrations
+3. Migrations run automatically on next app start
 
 To view/edit the database:
 
 ```bash
-npx prisma studio
+npm run db:studio
+```
+
+**Development vs Production:**
+- **Development**: Database stored in `data/dev.db`
+- **Production**: Database stored in user data directory (app.getPath('userData'))
+
+**Quick Schema Push (Development Only):**
+```bash
+npm run db:push  # Push schema changes directly without migrations
 ```
 
 ### Adding UI Components
@@ -380,15 +403,20 @@ Outputs:
 | `npm test` | Run tests with Vitest |
 | `npm run test:ui` | Run tests with UI |
 | `npm run typecheck` | TypeScript type checking |
+| `npm run db:generate` | Generate Drizzle migrations from schema |
+| `npm run db:push` | Push schema to database (dev only) |
+| `npm run db:studio` | Open Drizzle Studio (database GUI) |
+| `npm run rebuild` | Rebuild native modules for Electron |
 
 ## Best Practices
 
 1. **Security**: Context isolation is enabled by default. Never disable it.
 2. **IPC**: Always validate data from the renderer process in IPC handlers.
 3. **State**: Use Redux Toolkit for complex state, React state for local UI state.
-4. **Database**: Use Prisma migrations for all schema changes.
+4. **Database**: Use Drizzle migrations (`npm run db:generate`) for all schema changes.
 5. **Testing**: Write tests for critical business logic and complex components.
 6. **Types**: Leverage TypeScript's type system - avoid `any` types.
+7. **Native Modules**: The postinstall script automatically rebuilds native modules.
 
 ## Learn More
 
@@ -396,7 +424,8 @@ Outputs:
 - [Vite Documentation](https://vitejs.dev/)
 - [React Documentation](https://react.dev/)
 - [Redux Toolkit Documentation](https://redux-toolkit.js.org/)
-- [Prisma Documentation](https://www.prisma.io/docs)
+- [Drizzle ORM Documentation](https://orm.drizzle.team/docs/overview)
+- [Vercel AI SDK Documentation](https://sdk.vercel.ai/docs)
 - [shadcn/ui Documentation](https://ui.shadcn.com/)
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 
